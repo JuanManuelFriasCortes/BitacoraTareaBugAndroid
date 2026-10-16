@@ -16,11 +16,46 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
   bool cargando = true;
   String? error;
   String busqueda = '';
+  final busquedaCtrl = TextEditingController();
+  String filtroEstado = GestorIncidencias.todosLosEstados;
+  String filtroPrioridad = GestorIncidencias.todasLasPrioridades;
 
   @override
   void initState() {
     super.initState();
     cargar();
+  }
+
+  @override
+  void dispose() {
+    busquedaCtrl.dispose();
+    super.dispose();
+  }
+
+  bool get hayFiltros =>
+      busqueda.trim().isNotEmpty ||
+      filtroEstado != GestorIncidencias.todosLosEstados ||
+      filtroPrioridad != GestorIncidencias.todasLasPrioridades;
+
+  void limpiarFiltros() {
+    busquedaCtrl.clear();
+    setState(() {
+      busqueda = '';
+      filtroEstado = GestorIncidencias.todosLosEstados;
+      filtroPrioridad = GestorIncidencias.todasLasPrioridades;
+    });
+  }
+
+  Widget filtro(String etiqueta, String valor, List<String> opciones, ValueChanged<String> alCambiar) {
+    return DropdownButtonFormField<String>(
+      value: valor,
+      isDense: true,
+      decoration: InputDecoration(labelText: etiqueta, border: const OutlineInputBorder()),
+      items: opciones.map((o) => DropdownMenuItem(value: o, child: Text(o))).toList(),
+      onChanged: (v) {
+        if (v != null) alCambiar(v);
+      },
+    );
   }
 
   Future<void> cargar() async {
@@ -90,7 +125,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
 
   @override
   Widget build(BuildContext context) {
-    final items = g.buscar(busqueda);
+    final items = g.filtrar(busqueda, estado: filtroEstado, prioridad: filtroPrioridad);
     return Scaffold(
       appBar: AppBar(
         title: const Text('NexaSoft | Incidencias'),
@@ -157,6 +192,7 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
                           child: TextField(
+                            controller: busquedaCtrl,
                             decoration: const InputDecoration(
                               labelText: 'Buscar incidencias',
                               hintText: 'Ejemplo: WiFi, correo, pantalla',
@@ -167,15 +203,49 @@ class _PantallaPrincipalState extends State<PantallaPrincipal> {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-                          child: Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text('${items.length} registros', style: const TextStyle(color: Colors.black54)),
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 17, vertical: 5),
+                          child: Row(children: [
+                            Expanded(
+                              child: filtro('Estado', filtroEstado,
+                                  [GestorIncidencias.todosLosEstados, 'Pendiente', 'En proceso', 'Resuelta'],
+                                  (v) => setState(() => filtroEstado = v)),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: filtro('Prioridad', filtroPrioridad,
+                                  [GestorIncidencias.todasLasPrioridades, ...Incidencia.prioridades],
+                                  (v) => setState(() => filtroPrioridad = v)),
+                            ),
+                          ]),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 12, 0),
+                          child: Row(children: [
+                            Text('${items.length} registros', style: const TextStyle(color: Colors.black54)),
+                            const Spacer(),
+                            TextButton.icon(
+                              onPressed: hayFiltros ? limpiarFiltros : null,
+                              icon: const Icon(Icons.filter_alt_off_outlined),
+                              label: const Text('Limpiar búsqueda y filtros'),
+                            ),
+                          ]),
                         ),
                         Expanded(
                           child: items.isEmpty
-                              ? const Center(child: Text('No se encontraron incidencias'))
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24),
+                                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                                      const Icon(Icons.search_off, size: 40, color: Colors.black45),
+                                      const SizedBox(height: 10),
+                                      const Text('No hay incidencias que cumplan la búsqueda y los filtros seleccionados.',
+                                          textAlign: TextAlign.center),
+                                      const SizedBox(height: 8),
+                                      if (hayFiltros)
+                                        TextButton(onPressed: limpiarFiltros, child: const Text('Limpiar búsqueda y filtros')),
+                                    ]),
+                                  ),
+                                )
                               : ListView.builder(
                                   padding: const EdgeInsets.only(left: 12, right: 12, bottom: 100),
                                   itemCount: items.length,
